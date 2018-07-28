@@ -1,4 +1,4 @@
-# Unity Boilerplate
+# Unity Boilerplate - Mobile
 
 This repository contains a basic outline for new Unity projects. The repository includes some nice to have features such as:
 
