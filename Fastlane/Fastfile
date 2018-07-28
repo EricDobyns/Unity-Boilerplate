@@ -1,0 +1,275 @@
+#
+#  Fastfile 
+#  @author: Eric Dobyns
+#
+
+#
+#  PLEASE READ
+#
+#  This fastfile requires specific environment variables to be set. Please view the README.md and set the relevant environment variables.
+#
+#  For enterprise builds pointing to staging please make sure to have the AWS-CLI installed:
+#       - Installation with python: https://docs.aws.amazon.com/cli/latest/userguide/cli-install-macos.html 
+#       - Installation with Homebrew: http://www.chrisjmendez.com/2017/02/18/aws-installing-aws-client-using-homebrew/
+#
+
+
+
+################
+# iOS Platform #
+################
+# platform :ios do
+
+
+
+  ####################
+  # Before All Tasks #
+  ####################
+  before_all do
+    clear_derived_data
+    ENV["GYM_PROJECT"] = "./ExportedBuilds/iOS/Unity-iPhone.xcodeproj" 
+  end
+
+
+
+  #########
+  # Clean #
+  #########
+  desc "Create an .ipa for enterprise deployment"
+  lane :clean do
+    sh 'rm -rf ../ExportedBuilds/Output'
+  end
+
+
+
+  ########
+  # Test #
+  ########
+  desc ""
+  lane :test do
+    # TODO
+  end
+
+
+
+  #########
+  # Build #
+  #########
+  desc "Create an .ipa (defaults to enterprise build)"
+  lane :build do
+    build_staging
+  end
+
+  # Build : Staging
+  desc "Create an .ipa for enterprise deployment"
+  lane :build_staging do
+    gym(
+      scheme: "Unity-iPhone", 
+      export_method: "enterprise",
+      export_options: {
+        provisioningProfiles: { 
+          ENV["BUNDLE_ID"] => ENV["IOS_PROVISIONING_PROFILE"]
+        }
+      },
+      clean: true,
+      output_directory: "./ExportedBuilds/Output/iOS",
+      output_name: ENV["APP_NAME"]
+    )
+  end
+
+  # Build : Production
+  desc "Create an .ipa for app store deploymentclear"
+  lane :build_production do
+      # TODO...
+  end
+
+  ##########
+  # Deploy #
+  ##########
+  desc "Deploy .ipa to source (defaults to staging)"
+  lane:deploy do
+    deploy_all
+  end
+
+  desc "Deploy iOS and Android to S3"
+  lane:deploy_all do
+    sh ''' 
+    # Deploy Version Info to S3
+    date=$(date -u +"%Y-%m-%dT%H:%M:%SZ") && 
+    jq ".timestamp = \"$date\"" ../ExportedBuilds/version.json > version.tmp.json && 
+    cp -rf version.tmp.json ../ExportedBuilds/version.json &&
+    rm -rf version.tmp.json &&
+    aws s3 cp --acl public-read --cache-control no-cache ../ExportedBuilds/version.json s3://$S3_BUCKET/$APP_NAME/version.json
+
+    # Deploy Game To S3
+    buildPath="../ExportedBuilds/Output/iOS/$APP_NAME.ipa"
+    aws s3 cp --acl public-read $buildPath s3://$S3_BUCKET/$APP_NAME/$APP_NAME.ipa
+
+    # Deploy Asset Bundles To S3
+    cd ../ExportedAssetBundles/iOS/levels
+    rm -rf *.manifest
+    for file in *; do
+        aws s3 cp --acl public-read $file s3://$S3_BUCKET/$APP_NAME/iOS/$file
+    done
+
+    # Deploy Game To S3
+    buildPath="../ExportedBuilds/Android.apk"
+    aws s3 cp --acl public-read $buildPath s3://$S3_BUCKET/$APP_NAME/$APP_NAME.apk
+
+    # Deploy Asset Bundles To S3
+    cd ../ExportedAssetBundles/Android/levels
+    rm -rf *.manifest
+    for file in *; do
+        aws s3 cp --acl public-read $file s3://$S3_BUCKET/$APP_NAME/Android/$file
+    done      
+  '''
+  end
+
+  # Deploy : Staging
+  desc "Deploy iOS to S3"
+  lane:deploy_ios do
+    sh ''' 
+      # Deploy Version Info to S3
+      date=$(date -u +"%Y-%m-%dT%H:%M:%SZ") && 
+      jq ".timestamp = \"$date\"" ../ExportedBuilds/version.json > version.tmp.json && 
+      cp -rf version.tmp.json ../ExportedBuilds/version.json &&
+      rm -rf version.tmp.json &&
+      aws s3 cp --acl public-read --cache-control no-cache ../ExportedBuilds/version.json s3://$S3_BUCKET/$APP_NAME/version.json
+
+      # Deploy Game To S3
+      buildPath="../ExportedBuilds/Output/iOS/$APP_NAME.ipa"
+      aws s3 cp --acl public-read $buildPath s3://$S3_BUCKET/$APP_NAME/$APP_NAME.ipa
+
+      # Deploy Asset Bundles To S3
+      cd ../ExportedAssetBundles/iOS/levels
+      rm -rf *.manifest
+      for file in *; do
+          aws s3 cp --acl public-read $file s3://$S3_BUCKET/$APP_NAME/iOS/$file
+      done
+    '''
+  end
+
+  desc "Deploy Android to S3"
+  lane:deploy_android do
+    sh ''' 
+      # Deploy Version Info to S3
+      date=$(date -u +"%Y-%m-%dT%H:%M:%SZ") && 
+      jq ".timestamp = \"$date\"" ../ExportedBuilds/version.json > version.tmp.json && 
+      cp -rf version.tmp.json ../ExportedBuilds/version.json &&
+      rm -rf version.tmp.json &&
+      aws s3 cp --acl public-read --cache-control no-cache ../ExportedBuilds/version.json s3://$S3_BUCKET/$APP_NAME/version.json
+
+      # Deploy Game To S3
+      buildPath="../ExportedBuilds/Android.apk"
+      aws s3 cp --acl public-read $buildPath s3://$S3_BUCKET/$APP_NAME/$APP_NAME.apk
+
+      # Deploy Asset Bundles To S3
+      cd ../ExportedAssetBundles/Android/levels
+      rm -rf *.manifest
+      for file in *; do
+          aws s3 cp --acl public-read $file s3://$S3_BUCKET/$APP_NAME/Android/$file
+      done      
+    '''    
+  end
+
+  # Deploy : Production
+  desc "Deploy .ipa to App Store"
+  lane:deploy_production do
+    # TODO
+  end
+
+  desc "Get Version Number"
+  lane:version do
+    get_version_number(xcodeproj: "./ExportedBuilds/iOS/Unity-iPhone.xcodeproj", target: "Unity-iPhone")
+  end
+
+  desc "Test slack message"
+  lane:slacktest do
+      slack(
+          username: ENV["SLACK_USERNAME"],
+          icon_url: ENV["SLACK_USER_IMAGE"],
+          channel: "#updates-dev",
+          default_payloads: [],
+          message: "*New Staging Build Available For iOS*\nv" + get_version_number(xcodeproj: "./ExportedBuilds/iOS/Unity-iPhone.xcodeproj", target: "Unity-iPhone") + "\n" + ENV["DOWNLOAD_PAGE_URL"]
+      )
+  end
+
+  ###########
+  # Staging #
+  ###########
+  desc "Run entire staging workflow"
+  lane:staging_all do
+    clean
+    build
+    deploy_all
+    slack(
+      username: ENV["SLACK_USERNAME"],
+      icon_url: ENV["SLACK_USER_IMAGE"],
+      channel: "#updates-dev",
+      default_payloads: [],
+      message: "*New Staging Build Available For iOS & Android*\nv" + get_version_number(xcodeproj: "./ExportedBuilds/iOS/Unity-iPhone.xcodeproj", target: "Unity-iPhone") + "\n" + ENV["DOWNLOAD_PAGE_URL"]
+  )
+  end
+
+  desc "Run entire staging workflow"
+  lane:staging_ios do
+    clean
+    build
+    deploy_ios
+    slack(
+      username: ENV["SLACK_USERNAME"],
+      icon_url: ENV["SLACK_USER_IMAGE"],
+      channel: "#updates-dev",
+      default_payloads: [],
+      message: "*New Staging Build Available For iOS*\nv" + get_version_number(xcodeproj: "./ExportedBuilds/iOS/Unity-iPhone.xcodeproj", target: "Unity-iPhone") + "\n" + ENV["DOWNLOAD_PAGE_URL"]
+  )
+  end
+
+  desc "Run entire staging workflow"
+  lane:staging_android do
+    clean
+    deploy_android
+    slack(
+      username: ENV["SLACK_USERNAME"],
+      icon_url: ENV["SLACK_USER_IMAGE"],
+      channel: "#updates-dev",
+      default_payloads: [],
+      message: "*New Staging Build Available For Android*\n" + ENV["DOWNLOAD_PAGE_URL"]
+  )
+  end
+
+
+
+  ##############
+  # Production #
+  ##############
+  desc "Run entire production workflow"
+  lane:production do
+    # TODO
+  end
+
+
+
+  ###################
+  # After All Tasks #
+  ###################
+  after_all do |lane|
+    # TODO
+  end
+
+
+
+  #################
+  # Handle Errors #
+  #################
+  error do |lane, exception|
+    slack(
+      username: ENV["SLACK_USERNAME"],
+      icon_url: ENV["SLACK_USER_IMAGE"],
+      message: exception.to_s, 
+      success: false, 
+      payload: { "Output" => exception.error_info.to_s } 
+    )
+  end
+
+# end

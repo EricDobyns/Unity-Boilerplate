@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+    <head>
+        <!-- Meta Info -->
+        <title>AppTitle</title>
+        <meta name="author" content="Eric Dobyns">
+        <meta name='description' content=''>
+        <meta charset='utf-8'>
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8"/>
+        <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0"/>
+
+        <!-- CSS -->
+        <link rel='stylesheet' href='https://s3-us-west-1.amazonaws.com/ericdobyns-builds/GameTitle/styles.css'>
+    </head>
+
+    <!-- Body -->
+    <body>
+        <div id="background"></div>
+        <img id="appIcon"></img>
+        <div id="appTitle">App Title</div>
+        <div id="buildLabel">v0.0.0</div>
+        <div class="progress-bar">
+            <span class="progress-bar-fill" style="width: 0%"></span>
+        </div>
+        <button id="downloadButton" onclick="window.location.href = 'itms-services://?action=download-manifest&url=https://s3-us-west-1.amazonaws.com/ericdobyns-builds/GameTitle/GameTitle.plist';">Download</button>
+        <div id="dateLabel">April 20, 2018 • 4:20pm</div>
+        <div id="desktopWarningLabel">Please open this webpage on an iOS or Android device.<br>Have a great day!</div>
+    </body>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script type='text/javascript'>
+        $(document).ready(function () {
+
+            document.addEventListener("touchstart", function() {}, true);
+
+            // Set App Image
+            $('#appIcon').attr('src', 'https://downloads.andyroid.net/wp-content/uploads/2017/01/Spaceship-Battles-icon.png');
+
+            // Set Version and Release Date
+            $.getJSON("https://s3-us-west-1.amazonaws.com/ericdobyns-builds/GameTitle/version.json", function (response) {
+                $('#buildLabel').html('v' + response.version);
+
+                var date = new Date(response.timestamp);
+                $('#dateLabel').html(formatDate(date));
+            });
+
+            // Get Device Type
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                $('#desktopWarningLabel').remove();
+            } else if (/android/i.test(navigator.userAgent)) {
+                $('#downloadButton').attr('onclick', "window.location.href='https://s3-us-west-1.amazonaws.com/ericdobyns-builds/GameTitle/GameTitle.apk';");
+                $('#desktopWarningLabel').remove();
+            } else {
+                $('#downloadButton').remove();
+                $('#dateLabel').remove();
+            }
+
+            // On Download Button Click
+            $('#downloadButton').click(function() {
+                $('#downloadButton').html("Check your home screen");
+                $('#downloadButton').css('background', 'lightgray');
+                $('#downloadButton').css('box-shadow', '8px 8px 0 rgb(0, 200, 0)');
+                $('#downloadButton').css('color', 'black');
+                $(".progress-bar-fill").css({"width":"100%","transition":"5s"});
+                setTimeout(function () {
+                    $('#downloadButton').css('background', 'rgb(0, 200, 0)');
+                    $('#downloadButton').css('box-shadow', '8px 8px 0px rgba(30, 30, 30, 0.8)');
+                    $('#downloadButton').css('color', 'white');
+                    $('#downloadButton').html("Download");
+                    $(".progress-bar-fill").css({"width":"0%","transition":"none"});
+                }, 5000);
+            });
+
+            // Helper Functions
+            function formatDate(date) {
+                var now = date, 
+                ampm = 'am', 
+                mList = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                mo = mList[now.getMonth()];
+                da = now.getDate();
+                yr = now.getFullYear();
+                h = now.getHours(), 
+                m = now.getMinutes(), 
+                s = now.getSeconds();
+                if (h >= 12){
+                    if (h > 12) h -= 12;
+                    ampm = 'pm';
+                }
+                if (m < 10) m = '0' + m;
+                if (s < 10) s = '0' + s;
+
+                return mo + ' ' + da + ', ' + yr + ' • ' + h + ':' + m + ' ' + ampm;
+            }
+        })
+    </script>
+</html>
